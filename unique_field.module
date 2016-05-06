@@ -24,10 +24,13 @@ use Drupal\Core\Routing\RouteMatchInterface;
 /*used for hook_form_BASE_FORM_ID_alter*/
 use Drupal\Core\Form\FormStateInterface;
 
+
+/*used for entity builder*/
+use Drupal\field\Entity;
 use Drupal\node\Entity\NodeType;
 
-use Drupal\Core\Render\Element;
-use Drupal\Core\Config\ConfigFactoryInterface;
+/*used for language*/
+use Drupal\Core\Language;
 
 
 
@@ -47,41 +50,37 @@ function unique_field_help($route_name, RouteMatchInterface $route_match) {
 /**
  * hook_form_BASE_FORM_ID_alter()
  */
-function unique_field_form_alter(&$form, FormStateInterface $form_state, $form_id) {
+function unique_field_form_alter(array &$form, FormStateInterface $form_state, $form_id) {
 	
   // add user access permission later
   if ( ($form_id == 'node_type_add_form' || $form_id == 'node_type_edit_form') && isset($form['type']) ) {
-  	unique_field_node_settings_form($form);
-  }
-}
+  	
+  	// load fields for content type
+  	$type = $form_state->getFormObject()->getEntity();
+  	$ntype = $type->id();
 
 
-/**
- * Add the unique field settings form to content type forms (node_type_add_form & node_type_edit_form).
- */
-function unique_field_node_settings_form(&$form){
+  	$nodetype = !empty($ntype) ? NodeType::load($ntype) : FALSE;
+  	$fieldopts = array();
 
-  // load fields for content type
-  $ntype = $form['type']['#default_value'];
-  $nodetype = !empty($ntype) ? NodeType::load($ntype) : FALSE;
+  	// $fieldopts[UNIQUE_FIELD_FIELDS_TITLE] =  t('Title');
+ 	$fieldopts[UNIQUE_FIELD_FIELDS_AUTHOR] = t('Author');
+ 	if ((\Drupal::moduleHandler()->moduleExists('language')) && !empty($ntype) && \Drupal::languageManager()->getCurrentLanguage()->getId()) {
+ 	   $fieldopts[UNIQUE_FIELD_FIELDS_LANGUAGE] = t('Language');
+	 }
 
-  $fieldopts = array();
- // $fieldopts[UNIQUE_FIELD_FIELDS_TITLE] =  t('Title');
- //$fieldopts[UNIQUE_FIELD_FIELDS_AUTHOR] = t('Author');
-  //if ( (\Drupal::moduleHandler()->moduleExists('language'))) {
- // $fieldopts[UNIQUE_FIELD_FIELDS_LANGUAGE] = t('Language');
- // }
+	if (!empty($ntype)) {
+	    $entity_type_id = 'node';
+	    $bundle = $ntype;
+	    foreach (\Drupal::entityManager()->getFieldDefinitions($entity_type_id, $bundle) as $field_name => $field_definition){
+	      if (!empty($field_definition->getTargetBundle())) {
+	        $fieldopts[$field_name] = $field_definition->getLabel() . '('.$field_name.')';
+	      }
+	    }
+	}
   
-  if (!empty($ntype)) {
-    $entity_type_id = 'node';
-    $bundle = $ntype;
-    foreach (\Drupal::entityManager()->getFieldDefinitions($entity_type_id, $bundle) as $field_name => $field_definition){
-      if (!empty($field_definition->getTargetBundle())) {
-        $fieldopts[$field_name] = $field_definition->getLabel() . '('.$field_name.')';
-      }
-    }
-  }
-
+  //load default values
+  $config = \Drupal::configFactory()->get('unique_field.settings');
 
   //buid the unique field form
   $form['#tree'] = TRUE;  
@@ -92,15 +91,16 @@ function unique_field_node_settings_form(&$form){
     '#collapsible' => TRUE,
     '#collapsed' => TRUE,
     '#weight' => 1,      
-);
+  );
 
   $form['unique_field']['unique_field_fields'] = array(
     '#type' => 'checkboxes',
     '#title' => t('Choose the fields that should be unique'),
     '#options' => $fieldopts,
-    '#default_value' => !empty($ntype) ? \Drupal::config('unique_field.settings')->get('unique_field_field_items') : array(),
+    '#default_value' => !empty($ntype) ? $config->get('unique_field_settings.' . $ntype . '.fields') : array(),
     '#description' => t('After designating that certain fields should be unique, users will not be able to submit the content form to create a new node or update an existing one if it contains values in the designated fields that duplicate others.'),
   );
+
   $form['unique_field']['unique_field_scope'] = array(
     '#type' => 'radios',
     '#title' => t('Choose the scope for the unique values'),
@@ -110,9 +110,10 @@ function unique_field_node_settings_form(&$form){
       UNIQUE_FIELD_SCOPE_ALL => t('All nodes'),
       UNIQUE_FIELD_SCOPE_NODE => t('Single node only'),
     ),
-    //'#default_value' => !empty($ntype) ? variable_get('unique_field_scope_' . $ntype, UNIQUE_FIELD_SCOPE_TYPE) : UNIQUE_FIELD_SCOPE_TYPE,
+    '#default_value' => !empty($ntype) ? $config->get('unique_field_settings.' . $ntype . '.scope') : UNIQUE_FIELD_SCOPE_TYPE,
     '#description' => t('Choose whether the values in the specified fields must be unique among nodes of this content type, among nodes of the same language, among all nodes, or only among the fields of the present node.'),
   );
+
   $form['unique_field']['unique_field_comp'] = array(
     '#type' => 'radios',
     '#title' => t('Choose whether values must be unique individually or in combination'),
@@ -120,31 +121,71 @@ function unique_field_node_settings_form(&$form){
       UNIQUE_FIELD_COMP_EACH => t('Each of the specified fields must have a unique value'),
       UNIQUE_FIELD_COMP_ALL => t('The combination of values from the specified fields must be unique'),
     ),
-    //'#default_value' => !empty($ntype) ? variable_get('unique_field_comp_' . $ntype, UNIQUE_FIELD_COMP_EACH) : UNIQUE_FIELD_COMP_EACH,
+    '#default_value' => empty($ntype) ? $config->get('unique_field_settings.' . $ntype . '.comp') : UNIQUE_FIELD_COMP_EACH,
     '#description' => t('For example, if you have fields for the parts of a street address (street number and name, city, and zip code) on a node, and want to allow only one node per complete address, but not only one node per city or per zip code, then you would want to choose that the fields must be unique in combination.'),
   );
+
   $form['unique_field']['unique_field_show_matches'] = array(
     '#type' => 'checkboxes',
     '#title' => t('Check this box to show which nodes match when duplicate values are found'),
     '#options' => array(UNIQUE_FIELD_SHOW_MATCHES => t('Enabled')),
-    //'#default_value' => !empty($ntype) ? variable_get('unique_field_show_matches_' . $ntype, array()) : array(),
+    '#default_value' => !empty($ntype) ? $config->get('unique_field_settings.' . $ntype . '.show_matches') : array(),
   );
-  // add validation function
-  $form['#validate'][] = 'unique_field_node_settings_form_validate';
 
+  // add validation function in submit handler
+   $form['actions']['submit']['#submit'][] = 'unique_field_form_node_type_form_submit';  
+  }
 }
 
 /**
- * Form validation callback for unique_field_node_settings_form.
+ * Submit handler for the form.
+ *
  */
-function unique_field_node_settings_form_validate($form, &$form_state) {
-	
+function unique_field_form_node_type_form_submit(&$form, $form_state) {
+
+	$ntype = $form_state->getFormObject()->getEntity();
+
 	$unique_field_field_items = $form_state->getValue(['unique_field', 'unique_field_fields']);
-	foreach (array_keys($unique_field_field_items, '0') as $key) {
-    	unset($unique_field_field_items[$key]);
-	}
-	if(!empty($unique_field_scope_items)){
-		\Drupal::config('unique_field.settings')->set('unique_field_field_items', 'title')->save();
-	}
+	if (!empty($unique_field_field_items)) {
+		foreach (array_keys($unique_field_field_items, '0') as $key) {
+    		unset($unique_field_field_items[$key]);
+		}	
+		\Drupal::configFactory()->getEditable('unique_field.settings')
+    	->set('unique_field_settings.' . $ntype->id() . '.fields', $unique_field_field_items)
+    	->save();
+	}	
+
+    $unique_field_scope_items = $form_state->getValue(['unique_field', 'unique_field_scope']);
+    if (!empty($unique_field_scope_items)) {
+    	\Drupal::configFactory()->getEditable('unique_field.settings')
+    	->set('unique_field_settings.' . $ntype->id() . '.scope', $unique_field_scope_items)
+    	->save();
+    }
+
+    $unique_field_comp_items = $form_state->getValue(['unique_field', 'unique_field_comp']);
+    if (!empty($unique_field_comp_items)) {
+    	\Drupal::configFactory()->getEditable('unique_field.settings')
+    	->set('unique_field_settings.' . $ntype->id() . '.comp', $unique_field_comp_items)
+    	->save();    	
+    }
+
+    $unique_field_show_matches = $form_state->getValue(['unique_field','unique_field_show_matches']);
+    if (!empty($unique_field_show_matches)) {
+   		\Drupal::configFactory()->getEditable('unique_field.settings')
+    	->set('unique_field_settings.' . $ntype->id() . '.show_matches', $unique_field_show_matches)
+    	->save();
+    }
+
+	if ($form_state->getValue(['unique_field','unique_field_scope']) === UNIQUE_FIELD_SCOPE_NODE) {
+		if ($form_state->getValue(['unique_field','unique_field_comp']) === UNIQUE_FIELD_COMP_ALL) {
+			 $form_state->setErrorByName('unique_field_comp', t('The scope of a single node requires that each field must be unique.'));
+		}
+
+		//check the below condition on the day of sprint 
+
+	/*	if (($form_state->getValue(['unique_field','unique_field_scope',UNIQUE_FIELD_FIELDS_AUTHOR]) === UNIQUE_FIELD_FIELDS_AUTHOR) || (isset($form_state->getValue(['unique_field','unique_field_fields', UNIQUE_FIELD_FIELDS_LANGUAGE])) && $form_state->getValue(['unique_field','unique_field_fields', UNIQUE_FIELD_FIELDS_LANGUAGE]) === UNIQUE_FIELD_FIELDS_LANGUAGE)) {      		
+      		 $form_state->setErrorByName('unique_field_fields',t('The author and language fields are not supported within the scope of a single node.'));
+    	}*/		
+	}	
 
 }
