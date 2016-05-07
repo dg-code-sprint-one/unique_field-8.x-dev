@@ -141,7 +141,7 @@ function unique_field_form_alter(array &$form, FormStateInterface $form_state, $
  * Submit handler for the form.
  *
  */
-function unique_field_form_node_type_form_submit(&$form, $form_state) {
+function unique_field_form_node_type_form_submit(&$form,FormStateInterface $form_state) {
 
 	$ntype = $form_state->getFormObject()->getEntity();
 
@@ -178,14 +178,15 @@ function unique_field_form_node_type_form_submit(&$form, $form_state) {
 
 	if ($form_state->getValue(['unique_field','unique_field_scope']) === UNIQUE_FIELD_SCOPE_NODE) {
 		if ($form_state->getValue(['unique_field','unique_field_comp']) === UNIQUE_FIELD_COMP_ALL) {
-			 $form_state->setErrorByName('unique_field_comp', t('The scope of a single node requires that each field must be unique.'));
+			drupal_set_message(t('The scope of a single node requires that each field must be unique.'), 'error');
+    		$form_state->setRebuild();
 		}
 
-		//check the below condition on the day of sprint 
-
-	/*	if (($form_state->getValue(['unique_field','unique_field_scope',UNIQUE_FIELD_FIELDS_AUTHOR]) === UNIQUE_FIELD_FIELDS_AUTHOR) || (isset($form_state->getValue(['unique_field','unique_field_fields', UNIQUE_FIELD_FIELDS_LANGUAGE])) && $form_state->getValue(['unique_field','unique_field_fields', UNIQUE_FIELD_FIELDS_LANGUAGE]) === UNIQUE_FIELD_FIELDS_LANGUAGE)) {      		
-      		 $form_state->setErrorByName('unique_field_fields',t('The author and language fields are not supported within the scope of a single node.'));
-    	}*/		
+		
+		if (($form_state->getValue(['unique_field','unique_field_fields',UNIQUE_FIELD_FIELDS_AUTHOR]) === UNIQUE_FIELD_FIELDS_AUTHOR)||(!empty($form_state->getValue(['unique_field','unique_field_fields', UNIQUE_FIELD_FIELDS_LANGUAGE])) && $form_state->getValue(['unique_field','unique_field_fields', UNIQUE_FIELD_FIELDS_LANGUAGE]) === UNIQUE_FIELD_FIELDS_LANGUAGE )) {  
+			drupal_set_message(t('The author and language fields are not supported within the scope of a single node.'), 'error');
+    		$form_state->setRebuild();
+    	}	
 	}	
 
 }
