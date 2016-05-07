@@ -155,9 +155,12 @@ function unique_field_form_alter(array &$form, FormStateInterface $form_state, $
 }
 
 function unique_field_form_validate(array &$form, FormStateInterface $form_state){
-  $fields = array('title', 'body', 'field_test');
-  $scope = UNIQUE_FIELD_SCOPE_TYPE;
-  $comp_type = UNIQUE_FIELD_COMP_ALL;
+ 
+  $config = \Drupal::configFactory()->get('unique_field.settings');
+
+  $fields = $config->get('unique_field_settings.' . $form['bundle'] . '.fields');
+  $scope = $config->get('unique_field_settings.' . $form['bundle'] . '.scope');
+  $comp_type = $config->get('unique_field_settings.' . $form['bundle'] . '.comp');
   
   $title = $form_state->getValues()['title'][0]['value'];
   $langcode = $form_state->getValues()['langcode'][0]['value'];
