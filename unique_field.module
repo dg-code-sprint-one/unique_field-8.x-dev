@@ -268,34 +268,3 @@ function unique_field_form_node_type_form_submit(&$form,FormStateInterface $form
 	}	
 
 }
-
-/**
- * Implements hook_entity_bundle_field_info_alter().
- * For validation of fields 
- */
-function unique_field_entity_bundle_field_info_alter(&$fields, EntityTypeInterface $entity_type, $bundle) {
-	
-   if($entity_type ->id() === 'node'){
-   	print_r($bundle);
-   	//load default configuration
-  	$config = \Drupal::configFactory()->get('unique_field.settings');
-
-  	// get list of unique fields for node type	
-  	$unique_filed_fields = $config->get('unique_field_settings.' . $bundle . '.fields');
-  	if (count($unique_filed_fields)) {
-
-	  	// get unique field settings for this node type
-	    $scope = $config->get('unique_field_settings.' . $bundle . '.scope');
-	    $comp = $config->get('unique_field_settings.' . $bundle . '.comp');
-	    $var_show_matches = $config->get('unique_field_settings.' . $bundle . '.show_matches');    
-	    $show_matches = is_array($var_show_matches) && in_array(UNIQUE_FIELD_SHOW_MATCHES, $var_show_matches);
-	    echo "<pre>";
-	    print_r($unique_filed_fields);
-	    print_r($scope);
-	    print_r($show_matches);
-	    echo "</pre>";
-	    die;
-    }
-  }
-
-}
