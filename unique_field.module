@@ -58,7 +58,17 @@ function unique_field_help($route_name, RouteMatchInterface $route_match) {
  * hook_form_BASE_FORM_ID_alter()
  */
 function unique_field_form_alter(array &$form, FormStateInterface $form_state, $form_id) {
-	
+  $bundles = entity_get_bundles('node');
+  $bundle_id = array();
+  foreach ($bundles as $key => $value) {
+    $bundle_id['node_'.$key.'_form'] = $key;
+    $bundle_id['node_'.$key.'_add_form'] = $key;
+    $bundle_id['node_'.$key.'_edit_form'] = $key;
+  }
+  if(in_array($form_id, array_keys($bundle_id))){
+    $form['#validate'][] = 'unique_field_form_validate';
+    $form['bundle'] = $bundle_id[$form_id];
+  }
   // add user access permission later
   if ( ($form_id == 'node_type_add_form' || $form_id == 'node_type_edit_form') && isset($form['type']) ) {
   	
@@ -141,6 +151,44 @@ function unique_field_form_alter(array &$form, FormStateInterface $form_state, $
 
   // add validation function in submit handler
    $form['actions']['submit']['#submit'][] = 'unique_field_form_node_type_form_submit';  
+  }
+}
+
+function unique_field_form_validate(array &$form, FormStateInterface $form_state){
+  $fields = array('title', 'body', 'field_test');
+  $scope = UNIQUE_FIELD_SCOPE_TYPE;
+  $title = $form_state->getValues()['title'][0]['value'];
+  $node = \Drupal::routeMatch()->getParameter('node');
+  foreach($fields as $field_name){
+    $query = db_select('node_field_data', 'n');
+    $query -> fields('n', array('nid'));
+    if($field_name == 'title'){
+      $query -> condition('n.title', $title);
+    }
+    else{
+      $field_type = \Drupal\field\Entity\FieldStorageConfig::loadByName('node', $field_name)->get('type');
+      $values = $form_state->getValues()[$field_name];
+      $field_values = array();
+      foreach ($values as $value){
+        $field_values[] = ($field_type == 'entity_reference') ? $value['target_id'] : $value['value'];
+      }
+      $table_name = 'node__'.$field_name;
+      $col_name = $field_type == 'entity_reference' ? $field_name.'_target_id' : $field_name.'_value';
+
+      $query -> join($table_name, 'f', 'n.nid = f.entity_id');
+      $query -> condition('f.'.$col_name, $field_values, 'IN');
+    }
+    if($scope == 'type'){
+      $query -> condition('n.type', $form['bundle']);
+    }
+    if ($node) {
+      $query -> condition('n.nid', $node->id(), '<>');
+    }
+    $res = $query -> execute() -> fetchField();
+    if($res){
+      $form_state->setErrorByName($field_name, t("The field $field_name has to be unique."));
+      $form_state->setRebuild();
+    }
   }
 }
 
