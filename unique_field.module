@@ -292,42 +292,7 @@ function unique_field_entity_bundle_field_info_alter(&$fields, EntityTypeInterfa
 	    $comp = $config->get('unique_field_settings.' . $bundle . '.comp');
 	    $var_show_matches = $config->get('unique_field_settings.' . $bundle . '.show_matches');    
 	    $show_matches = is_array($var_show_matches) && in_array(UNIQUE_FIELD_SHOW_MATCHES, $var_show_matches);
-	    echo "<pre>";
-	    print_r($unique_filed_fields);
-	    print_r($scope);
-	    print_r($show_matches);
-	    echo "</pre>";
-	    die;
     }
-    //$indexs = $fields['promote'];
-    /*$keyarray = array();
-    $i = 0;
-    foreach ($fields as $key => $value) {
-
-      $keyarray[$i] = $key;
-      $i++;
-     print_r($key);
-    }
-
-	if ($entity_type->id() == 'node') {
-		switch ($bundle) {
-    case 'article':
-  	echo '<pre>';
-    print_r($fields);
-    echo '</pre>';
-    kint($fields);
-    die;
-    foreach($keyarray as $key => $value) {
-  
-       $fields['field_mytext']->addConstraint('samefield', []);
-      }
-      
-        break;
-   }
-    echo '<pre>';
-    print_r($bundle);
-    echo '</pre>';
-    die;*/
   }
 
 }
