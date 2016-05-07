@@ -68,6 +68,10 @@ function unique_field_form_alter(array &$form, FormStateInterface $form_state, $
   if(in_array($form_id, array_keys($bundle_id))){
     $form['#validate'][] = 'unique_field_form_validate';
     $form['bundle'] = $bundle_id[$form_id];
+    $form['unique_field_override'] = array(
+      	'#type' => 'hidden',
+      	'#default_value' => '0',
+     );
   }
   
   // Get the current user
@@ -156,10 +160,19 @@ function unique_field_form_alter(array &$form, FormStateInterface $form_state, $
   // add validation function in submit handler
    $form['actions']['submit']['#submit'][] = 'unique_field_form_node_type_form_submit';  
   }
-}
 
+   
+}
+/**
+* validate the node for unique field conditions on submission
+*/
 function unique_field_form_validate(array &$form, FormStateInterface $form_state){
  
+  //if override permission set show warring message and skip validation
+  if($form_state->getValues()['unique_field_override'] == 1){
+  	return;
+  }
+  //load default  configuration for validation
   $config = \Drupal::configFactory()->get('unique_field.settings');
 
   $fields = $config->get('unique_field_settings.' . $form['bundle'] . '.fields');
@@ -169,6 +182,7 @@ function unique_field_form_validate(array &$form, FormStateInterface $form_state
   $title = $form_state->getValues()['title'][0]['value'];
   $langcode = $form_state->getValues()['langcode'][0]['value'];
   $node = \Drupal::routeMatch()->getParameter('node');
+  
   if($comp_type == UNIQUE_FIELD_COMP_ALL){
     $query = db_select('node_field_data', 'n');
     $query -> fields('n', array('nid'));
@@ -215,8 +229,14 @@ function unique_field_form_validate(array &$form, FormStateInterface $form_state
       $query -> condition('n.nid', $node->id(), '<>');
     }
     $res = $query -> execute() -> fetchField();
-    if($res){
+    if($res) {
       $form_state->setErrorByName($field_name, t("The field $field_name has to be unique."));
+      $user = \Drupal::currentUser();
+      if( $user->hasPermission('unique_field_perm_bypass') ) {
+      	$form_id = str_replace('_', '-', $form['#id']);
+      	$msg = t('Your form has unique field validation errors. Click !here to bypass this check and resubmit.', array('!here' => "<a href=\"#\" onclick=\"jQuery('form#" . $form_id . " input[name=\'unique_field_override\']').val(1);jQuery('form#" . $form_id . "').submit();return false;\">" . t('here') . '</a>'));
+      	drupal_set_message($msg, 'warning');
+      }
       $form_state->setRebuild();
     }
   }
@@ -272,6 +292,5 @@ function unique_field_form_node_type_form_submit(&$form,FormStateInterface $form
 			drupal_set_message(t('The author and language fields are not supported within the scope of a single node.'), 'error');
     		$form_state->setRebuild();
     	}	
-	}	
-
+	}
 }
