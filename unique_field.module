@@ -157,10 +157,20 @@ function unique_field_form_alter(array &$form, FormStateInterface $form_state, $
 function unique_field_form_validate(array &$form, FormStateInterface $form_state){
   $fields = array('title', 'body', 'field_test');
   $scope = UNIQUE_FIELD_SCOPE_TYPE;
+  $comp_type = UNIQUE_FIELD_COMP_ALL;
+  
   $title = $form_state->getValues()['title'][0]['value'];
   $langcode = $form_state->getValues()['langcode'][0]['value'];
   $node = \Drupal::routeMatch()->getParameter('node');
+  if($comp_type == UNIQUE_FIELD_COMP_ALL){
+    $query = db_select('node_field_data', 'n');
+    $query -> fields('n', array('nid'));
+  }
   foreach($fields as $field_name){
+    if($comp_type == UNIQUE_FIELD_COMP_EACH){
+      $query = db_select('node_field_data', 'n');
+      $query -> fields('n', array('nid'));
+    }
     $query = db_select('node_field_data', 'n');
     $query -> fields('n', array('nid'));
     if($field_name == 'title'){
