@@ -158,6 +158,7 @@ function unique_field_form_validate(array &$form, FormStateInterface $form_state
   $fields = array('title', 'body', 'field_test');
   $scope = UNIQUE_FIELD_SCOPE_TYPE;
   $title = $form_state->getValues()['title'][0]['value'];
+  $langcode = $form_state->getValues()['langcode'][0]['value'];
   $node = \Drupal::routeMatch()->getParameter('node');
   foreach($fields as $field_name){
     $query = db_select('node_field_data', 'n');
@@ -172,13 +173,25 @@ function unique_field_form_validate(array &$form, FormStateInterface $form_state
       foreach ($values as $value){
         $field_values[] = ($field_type == 'entity_reference') ? $value['target_id'] : $value['value'];
       }
+      if($scope == UNIQUE_FIELD_SCOPE_NODE){
+        $unique_values = array_unique($field_values);
+        if(count($field_values) != count($unique_values)){
+          $form_state->setErrorByName($field_name, t("The field $field_name has to be unique."));
+          $form_state->setRebuild();
+          continue;
+        }
+      }      
       $table_name = 'node__'.$field_name;
       $col_name = $field_type == 'entity_reference' ? $field_name.'_target_id' : $field_name.'_value';
 
       $query -> join($table_name, 'f', 'n.nid = f.entity_id');
       $query -> condition('f.'.$col_name, $field_values, 'IN');
+      
+      if($scope == UNIQUE_FIELD_SCOPE_LANGUAGE){
+        $query -> condition('f.langcode', $langcode);
+      }
     }
-    if($scope == 'type'){
+    if($scope == UNIQUE_FIELD_SCOPE_TYPE){
       $query -> condition('n.type', $form['bundle']);
     }
     if ($node) {
