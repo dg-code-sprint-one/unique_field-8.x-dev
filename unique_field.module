@@ -69,12 +69,16 @@ function unique_field_form_alter(array &$form, FormStateInterface $form_state, $
     $form['#validate'][] = 'unique_field_form_validate';
     $form['bundle'] = $bundle_id[$form_id];
   }
+  
+  // Get the current user
+  $user = \Drupal::currentUser();
+
   // add user access permission later
-  if ( ($form_id == 'node_type_add_form' || $form_id == 'node_type_edit_form') && isset($form['type']) ) {
-  	
-  	// load fields for content type
-  	$type = $form_state->getFormObject()->getEntity();
-  	$ntype = $type->id();
+  if ( ($form_id == 'node_type_add_form' || $form_id == 'node_type_edit_form') && isset($form['type']) && $user->hasPermission('unique_field_perm_admin') ) {
+    
+    // load fields for content type
+    $type = $form_state->getFormObject()->getEntity();
+    $ntype = $type->id();
 
 
   	$nodetype = !empty($ntype) ? NodeType::load($ntype) : FALSE;
@@ -155,9 +159,12 @@ function unique_field_form_alter(array &$form, FormStateInterface $form_state, $
 }
 
 function unique_field_form_validate(array &$form, FormStateInterface $form_state){
-  $fields = array('title', 'body', 'field_test');
-  $scope = UNIQUE_FIELD_SCOPE_TYPE;
-  $comp_type = UNIQUE_FIELD_COMP_ALL;
+ 
+  $config = \Drupal::configFactory()->get('unique_field.settings');
+
+  $fields = $config->get('unique_field_settings.' . $form['bundle'] . '.fields');
+  $scope = $config->get('unique_field_settings.' . $form['bundle'] . '.scope');
+  $comp_type = $config->get('unique_field_settings.' . $form['bundle'] . '.comp');
   
   $title = $form_state->getValues()['title'][0]['value'];
   $langcode = $form_state->getValues()['langcode'][0]['value'];
